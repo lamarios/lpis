@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const configLocation = "/usr/share/lpis/lpis.yml"
+
 type Flatpak struct {
 	Name      string `yaml:"name"`
 	Ref       string `yaml:"ref"`
@@ -166,8 +168,8 @@ func (m model) View() string {
 
 func save() {
 	checksum := getConfigChecksum()
-	configDir, err := os.UserConfigDir()
-	f, err := os.OpenFile(configDir+"/lpis", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	configDir, err := getLocalFileLocation()
+	f, err := os.OpenFile(configDir, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -178,13 +180,22 @@ func save() {
 	}
 }
 
-func getSavedChecksum() string {
+func getLocalFileLocation() (string, error) {
 	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return configDir + "/lpis", nil
+}
+
+func getSavedChecksum() string {
+	configDir, err := getLocalFileLocation()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	savedChecksumBytes, err := ioutil.ReadFile(configDir + "/lpis")
+	savedChecksumBytes, err := ioutil.ReadFile(configDir)
 	savedChecksum := ""
 
 	if err == nil {
@@ -195,7 +206,7 @@ func getSavedChecksum() string {
 }
 
 func getConfigChecksum() string {
-	f, err := os.Open("/etc/lpis.yml")
+	f, err := os.Open(configLocation)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -210,7 +221,7 @@ func getConfigChecksum() string {
 }
 
 func main() {
-	content, err := ioutil.ReadFile("/etc/lpis.yml")
+	content, err := ioutil.ReadFile(configLocation)
 
 	if err != nil {
 		// we don't have a config file, we exit
