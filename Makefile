@@ -1,6 +1,6 @@
 arch := $(shell go env GOARCH)
 os := $(shell go env GOOS)
-version := ${DRONE_TAG:-0.1}
+version := $(shell ech ${DRONE_TAG:-0.1})
 
 build:
 	 CGO_CFLAGS_ALLOW=".*" CGO_LDFLAGS_ALLOW=".*" go mod download
