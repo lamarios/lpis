@@ -291,13 +291,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	/*	checksum := getConfigChecksum()
+	checksum := getConfigChecksum()
 
-		if getSavedChecksum() == checksum {
-			fmt.Println("we already processed this checksum, nothing to do")
-			os.Exit(0)
-		}
-	*/
+	if getSavedChecksum() == checksum {
+		fmt.Println("we already processed this checksum, nothing to do")
+		os.Exit(0)
+	}
+
 	config := Config{}
 	err = yaml.Unmarshal(content, &config)
 
