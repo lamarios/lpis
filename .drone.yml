@@ -1,0 +1,20 @@
+kind: pipeline
+type: docker
+name: Backend & web
+
+steps:
+  - name: build
+    image: fedora:37
+    pull: always
+    commands:
+      - dnf install -y go
+      - make
+      - make package
+  - name: publish
+    image: plugins/github-release
+    settings:
+      api_key:
+        from_secret: github_token
+      files: "*.tar.gz"
+    when:
+      event: tag

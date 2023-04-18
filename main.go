@@ -189,7 +189,7 @@ func (m model) View() string {
 	s += fmt.Sprintf("\n%s Install missing flatpaks\n\n\n", cursor)
 
 	if len(m.scripts) > 0 {
-		s += fmt.Sprintf("Scripts:\\n\\n")
+		s += fmt.Sprintf("Scripts:\n\n")
 
 		for i, script := range m.scripts {
 
@@ -291,13 +291,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	checksum := getConfigChecksum()
+	/*	checksum := getConfigChecksum()
 
-	if getSavedChecksum() == checksum {
-		fmt.Println("we already processed this checksum, nothing to do")
-		os.Exit(0)
-	}
-
+		if getSavedChecksum() == checksum {
+			fmt.Println("we already processed this checksum, nothing to do")
+			os.Exit(0)
+		}
+	*/
 	config := Config{}
 	err = yaml.Unmarshal(content, &config)
 
