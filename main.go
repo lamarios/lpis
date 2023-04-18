@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/clagraff/argparse"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -14,8 +15,6 @@ import (
 	"os/exec"
 	"strings"
 )
-
-const configLocation = "/usr/share/lpis/lpis.yml"
 
 //const configLocation = "./lpis.yml"
 
@@ -36,10 +35,11 @@ type Config struct {
 }
 
 type model struct {
-	choices  []Flatpak
-	scripts  []Script
-	cursor   int
-	selected map[int]struct{}
+	choices        []Flatpak
+	scripts        []Script
+	cursor         int
+	selected       map[int]struct{}
+	configLocation string
 }
 
 func initialModel(config Config) model {
@@ -81,7 +81,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
-			save()
+			m.save()
 			return m, tea.Quit
 
 		// The "up" and "k" keys move the cursor up
@@ -122,7 +122,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) runScript(script Script) {
-	println(len(script.Commands))
 
 	path, err := writeTempScript(script)
 	if err != nil {
@@ -136,7 +135,6 @@ func (m model) runScript(script Script) {
 		log.Fatal(err)
 	}
 
-	println("done")
 }
 
 func (m model) InstallFlatpaks() bool {
@@ -211,8 +209,8 @@ func (m model) View() string {
 	return s
 }
 
-func save() {
-	checksum := getConfigChecksum()
+func (m model) save() {
+	checksum := getConfigChecksum(m.configLocation)
 	configDir, err := getLocalFileLocation()
 	f, err := os.OpenFile(configDir, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
@@ -267,7 +265,7 @@ func getSavedChecksum() string {
 	return savedChecksum
 }
 
-func getConfigChecksum() string {
+func getConfigChecksum(configLocation string) string {
 	f, err := os.Open(configLocation)
 	if err != nil {
 		log.Fatal(err)
@@ -282,20 +280,40 @@ func getConfigChecksum() string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func main() {
-	content, err := ioutil.ReadFile(configLocation)
+func callback(p *argparse.Parser, ns *argparse.Namespace, leftovers []string, err error) {
 
+	if err != nil {
+		switch err.(type) {
+		case argparse.ShowHelpErr, argparse.ShowVersionErr:
+			// For either ShowHelpErr or ShowVersionErr, the parser has already
+			// displayed the necessary text to the user. So we end the program
+			// by returning.
+			return
+		default:
+			fmt.Println(err, "\n")
+			p.ShowHelp()
+		}
+
+		return // Exit program
+	}
+
+	configLocation := ns.Get("config").(string)
+	ignoreChecksum := ns.Get("force").(string) == "true"
+
+	content, err := ioutil.ReadFile(configLocation)
 	if err != nil {
 		// we don't have a config file, we exit
 		fmt.Println("no config file, exiting")
 		os.Exit(0)
 	}
 
-	checksum := getConfigChecksum()
+	if !ignoreChecksum {
+		checksum := getConfigChecksum(configLocation)
 
-	if getSavedChecksum() == checksum {
-		fmt.Println("we already processed this checksum, nothing to do")
-		os.Exit(0)
+		if getSavedChecksum() == checksum {
+			fmt.Println("we already processed this checksum, nothing to do, use -f to skip verification")
+			os.Exit(0)
+		}
 	}
 
 	config := Config{}
@@ -305,9 +323,22 @@ func main() {
 		log.Fatal("invalid yaml file")
 	}
 
-	p := tea.NewProgram(initialModel(config))
-	if _, err := p.Run(); err != nil {
+	t := tea.NewProgram(initialModel(config))
+	if _, err := t.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func main() {
+	p := argparse.NewParser("Output a friendly greeting", callback)
+	p.AddHelp()
+
+	forceFlag := argparse.NewFlag("f force", "force", "Force run even if we already processed this check sum").Default("false")
+	configOption := argparse.NewOption("c config", "config", "config file location").Nargs(1).Default("/usr/share/lpis/lpis.yml").Action(argparse.Store)
+
+	p.AddOptions(forceFlag, configOption)
+
+	// Parse all available program arguments (except for the program path).
+	p.Parse(os.Args[1:]...)
 }
