@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/charmbracelet/bubbletea v0.23.2
+	github.com/google/uuid v1.3.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

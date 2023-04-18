@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
@@ -16,20 +17,29 @@ import (
 
 const configLocation = "/usr/share/lpis/lpis.yml"
 
+//const configLocation = "./lpis.yml"
+
 type Flatpak struct {
 	Name      string `yaml:"name"`
 	Ref       string `yaml:"ref"`
 	Installed bool
 }
 
+type Script struct {
+	Name     string   `yaml:"name"`
+	Commands []string `yaml:"commands"`
+}
+
 type Config struct {
 	Flatpaks []Flatpak `yaml:"flatpaks"`
+	Scripts  []Script  `yaml:"scripts"`
 }
 
 type model struct {
-	choices  []Flatpak        // items on the to-do list
-	cursor   int              // which to-do list item our cursor is pointing at
-	selected map[int]struct{} // which to-do items are selected
+	choices  []Flatpak
+	scripts  []Script
+	cursor   int
+	selected map[int]struct{}
 }
 
 func initialModel(config Config) model {
@@ -47,6 +57,7 @@ func initialModel(config Config) model {
 	return model{
 		// Our to-do list is a grocery list
 		choices: config.Flatpaks,
+		scripts: config.Scripts,
 
 		// A map which indicates which choices are selected. We're using
 		// the  map like a mathematical set. The keys refer to the indexes
@@ -81,17 +92,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "down" and "j" keys move the cursor down
 		case "down", "j":
-			if m.cursor < len(m.choices) {
+			if m.cursor < len(m.choices)+len(m.scripts) {
 				m.cursor++
 			}
 
 		// The "enter" key and the spacebar (a literal space) toggle
 		// the selected state for the item that the cursor is pointing at.
 		case "enter", " ":
-			if m.cursor == len(m.choices) {
-				if m.InstallFlatpaks() {
-					return m, tea.Quit
-				}
+			if m.cursor > len(m.choices) && m.cursor < len(m.choices)+1+len(m.scripts) {
+				m.runScript(m.scripts[m.cursor-len(m.choices)-1])
+			} else if m.cursor == len(m.choices) {
+				m.InstallFlatpaks()
 			} else if !m.choices[m.cursor].Installed {
 
 				_, ok := m.selected[m.cursor]
@@ -110,6 +121,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) runScript(script Script) {
+	println(len(script.Commands))
+
+	path, err := writeTempScript(script)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	command := []string{"gnome-terminal", "--", path}
+	cmd := exec.Command("bash", "-c", strings.Join(command, " "))
+	println(strings.Join(cmd.Args, " "))
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
+	}
+
+	println("done")
+}
+
 func (m model) InstallFlatpaks() bool {
 	if len(m.selected) > 0 {
 		command := []string{"gnome-terminal", "--", "flatpak", "install", "--noninteractive", "-y"}
@@ -123,7 +152,6 @@ func (m model) InstallFlatpaks() bool {
 			log.Fatal(err)
 		}
 
-		save()
 		return true
 	}
 
@@ -133,7 +161,7 @@ func (m model) InstallFlatpaks() bool {
 func (m model) View() string {
 	// The header
 	s := "Flatpaks:\n\n"
-
+	flatpaksOffset := len(m.choices) + 1
 	// Iterate over our choices
 	for i, choice := range m.choices {
 
@@ -158,7 +186,24 @@ func (m model) View() string {
 	if m.cursor == len(m.choices) {
 		cursor = ">" // cursor!
 	}
-	s += fmt.Sprintf("%s Install missing flatpaks\n", cursor)
+	s += fmt.Sprintf("\n%s Install missing flatpaks\n\n\n", cursor)
+
+	if len(m.scripts) > 0 {
+		s += fmt.Sprintf("Scripts:\\n\\n")
+
+		for i, script := range m.scripts {
+
+			// Is the cursor pointing at this choice?
+			cursor := " " // no cursor
+			if m.cursor == flatpaksOffset+i {
+				cursor = ">" // cursor!
+			}
+
+			// Render the row
+			s += fmt.Sprintf("%s %s\n", cursor, script.Name)
+		}
+	}
+
 	// The footer
 	s += "\nPress q to quit.\n"
 
@@ -170,6 +215,7 @@ func save() {
 	checksum := getConfigChecksum()
 	configDir, err := getLocalFileLocation()
 	f, err := os.OpenFile(configDir, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	defer f.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -178,6 +224,22 @@ func save() {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func writeTempScript(script Script) (string, error) {
+	path := os.TempDir() + "/" + uuid.New().String()
+	f, err := os.OpenFile(path, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0744)
+	defer f.Close()
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	_, err = f.WriteString(strings.Join(script.Commands, "\n"))
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	return path, nil
 }
 
 func getLocalFileLocation() (string, error) {
