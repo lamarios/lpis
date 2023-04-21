@@ -4,10 +4,9 @@ name: Backend & web
 
 steps:
   - name: build
-    image: fedora:37
+    image: golang
     pull: always
     commands:
-      - dnf install -y go
       - make
       - make package
   - name: publish
