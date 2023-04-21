@@ -4,8 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/alexflint/go-arg"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/clagraff/argparse"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -15,8 +15,6 @@ import (
 	"os/exec"
 	"strings"
 )
-
-//const configLocation = "./lpis.yml"
 
 type Flatpak struct {
 	Name      string `yaml:"name"`
@@ -42,7 +40,7 @@ type model struct {
 	configLocation string
 }
 
-func initialModel(config Config) model {
+func initialModel(config Config, location string) model {
 	selected := make(map[int]struct{})
 
 	out, err := exec.Command("flatpak", "list").Output()
@@ -62,7 +60,8 @@ func initialModel(config Config) model {
 		// A map which indicates which choices are selected. We're using
 		// the  map like a mathematical set. The keys refer to the indexes
 		// of the `choices` slice, above.
-		selected: selected,
+		selected:       selected,
+		configLocation: location,
 	}
 }
 func (m model) Init() tea.Cmd {
@@ -130,7 +129,7 @@ func (m model) runScript(script Script) {
 
 	command := []string{"gnome-terminal", "--", path}
 	cmd := exec.Command("bash", "-c", strings.Join(command, " "))
-	println(strings.Join(cmd.Args, " "))
+
 	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -143,7 +142,6 @@ func (m model) InstallFlatpaks() bool {
 		for k := range m.selected {
 			command = append(command, m.choices[k].Ref)
 		}
-		fmt.Println(command)
 		cmd := exec.Command("bash", "-c", strings.Join(command, " "))
 
 		if err := cmd.Run(); err != nil {
@@ -212,14 +210,22 @@ func (m model) View() string {
 func (m model) save() {
 	checksum := getConfigChecksum(m.configLocation)
 	configDir, err := getLocalFileLocation()
+
+	if err != nil {
+		fmt.Println("can't get local file location")
+		fmt.Println(err)
+	}
+
 	f, err := os.OpenFile(configDir, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	if err != nil {
+		fmt.Println("Couldn't open" + configDir)
 		fmt.Println(err)
 	}
 	_, err = f.WriteString(checksum)
-	fmt.Println(configDir)
+
 	if err != nil {
+		fmt.Println("Couldn't write to" + configDir)
 		fmt.Println(err)
 	}
 }
@@ -266,49 +272,40 @@ func getSavedChecksum() string {
 }
 
 func getConfigChecksum(configLocation string) string {
+	log.Println(configLocation)
 	f, err := os.Open(configLocation)
 	if err != nil {
+		log.Println("yo")
 		log.Fatal(err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
+		log.Println("yo 2")
 		log.Fatal(err)
 	}
 
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func callback(p *argparse.Parser, ns *argparse.Namespace, leftovers []string, err error) {
+func main() {
 
-	if err != nil {
-		switch err.(type) {
-		case argparse.ShowHelpErr, argparse.ShowVersionErr:
-			// For either ShowHelpErr or ShowVersionErr, the parser has already
-			// displayed the necessary text to the user. So we end the program
-			// by returning.
-			return
-		default:
-			fmt.Println(err, "\n")
-			p.ShowHelp()
-		}
-
-		return // Exit program
+	var args struct {
+		Force  bool   `arg:"-f, --force" help:"Force running the script"`
+		Config string `arg:"-c, --config" help:"Config file location" default:"/usr/share/lpis/lpis.yml"`
 	}
 
-	configLocation := ns.Get("config").(string)
-	ignoreChecksum := ns.Get("force").(string) == "true"
-
-	content, err := ioutil.ReadFile(configLocation)
+	arg.MustParse(&args)
+	content, err := ioutil.ReadFile(args.Config)
 	if err != nil {
 		// we don't have a config file, we exit
 		fmt.Println("no config file, exiting")
 		os.Exit(0)
 	}
 
-	if !ignoreChecksum {
-		checksum := getConfigChecksum(configLocation)
+	if !args.Force {
+		checksum := getConfigChecksum(args.Config)
 
 		if getSavedChecksum() == checksum {
 			fmt.Println("we already processed this checksum, nothing to do, use -f to skip verification")
@@ -323,22 +320,9 @@ func callback(p *argparse.Parser, ns *argparse.Namespace, leftovers []string, er
 		log.Fatal("invalid yaml file")
 	}
 
-	t := tea.NewProgram(initialModel(config))
+	t := tea.NewProgram(initialModel(config, args.Config))
 	if _, err := t.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
-}
-
-func main() {
-	p := argparse.NewParser("Output a friendly greeting", callback)
-	p.AddHelp()
-
-	forceFlag := argparse.NewFlag("f force", "force", "Force run even if we already processed this check sum").Default("false")
-	configOption := argparse.NewOption("c config", "config", "config file location").Nargs(1).Default("/usr/share/lpis/lpis.yml").Action(argparse.Store)
-
-	p.AddOptions(forceFlag, configOption)
-
-	// Parse all available program arguments (except for the program path).
-	p.Parse(os.Args[1:]...)
 }

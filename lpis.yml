@@ -17,38 +17,8 @@ flatpaks:
     ref: com.mattjakeman.ExtensionManager
   - name: Nextcloud Desktop
     ref: com.nextcloud.desktopclient.nextcloud
-  - name: Slack
-    ref: com.slack.Slack
-  - name: Spotify
-    ref: com.spotify.Client
-  - name: Steam
-    ref: com.valvesoftware.Steam
-  - name: MangoHud
-    ref: org.freedesktop.Platform.VulkanLayer.MangoHud
-  - name: Fragments
-    ref: de.haeckerfelix.Fragments
-  - name: Element
-    ref: im.riot.Riot
-  - name: What's app
-    ref: io.github.mimbrero.WhatsAppDesktop
-  - name: Signal
-    ref: org.signal.Signal
-  - name: ProtonPlus
-    ref: com.vysp3r.ProtonPlus
-  - name: LibreOffice
-    ref: org.freedesktop.Platform.VulkanLayer.MangoHud
-  - name: Video Trimmer
-    ref: org.gnome.gitlab.YaLTeR.VideoTrimmer
-  - name: gThumb (image viewer / editor)
-    ref: org.gnome.gThumb
-  - name: Discord
-    ref: com.discordapp.Discord
 scripts:
   - name: Test script
     commands:
       - htop
       - s-tui
-  - name: Test number 2
-    commands:
-      - echo "Making a nix backup"
-      - bash <(curl -s https://raw.githubusercontent.com/dnkmmr69420/nix-with-selinux/main/create-backup.sh)
