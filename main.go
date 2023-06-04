@@ -140,8 +140,6 @@ func (m model) runScript(script Script) {
 		command = []string{"konsole", "-e", "bash -c " + path}
 	}
 
-	log.Println(strings.Join(command, " "))
-
 	cmd := exec.Command("bash", "-c", strings.Join(command, " "))
 
 	if err := cmd.Run(); err != nil {
