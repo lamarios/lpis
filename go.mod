@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/alexflint/go-arg v1.4.3
 	github.com/charmbracelet/bubbletea v0.23.2
+	github.com/dekobon/distro-detect v0.0.0-20230416173418-bee8492482d7
 	github.com/google/uuid v1.3.0
 	gopkg.in/yaml.v3 v3.0.1
 )

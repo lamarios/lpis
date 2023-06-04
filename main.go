@@ -32,6 +32,11 @@ type Config struct {
 	Scripts  []Script  `yaml:"scripts"`
 }
 
+const (
+	Gnome = "gnome"
+	KDE   = "kde"
+)
+
 type model struct {
 	choices        []Flatpak
 	scripts        []Script
@@ -39,6 +44,8 @@ type model struct {
 	selected       map[int]struct{}
 	configLocation string
 }
+
+var terminal = Gnome
 
 func initialModel(config Config, location string) model {
 	selected := make(map[int]struct{})
@@ -128,6 +135,13 @@ func (m model) runScript(script Script) {
 	}
 
 	command := []string{"gnome-terminal", "--", path}
+
+	if terminal == KDE {
+		command = []string{"konsole", "-e", "bash -c " + path}
+	}
+
+	log.Println(strings.Join(command, " "))
+
 	cmd := exec.Command("bash", "-c", strings.Join(command, " "))
 
 	if err := cmd.Run(); err != nil {
@@ -294,9 +308,16 @@ func main() {
 	var args struct {
 		Force  bool   `arg:"-f, --force" help:"Force running the script"`
 		Config string `arg:"-c, --config" help:"Config file location" default:"/usr/share/lpis/lpis.yml"`
+		KDE    bool   `arg:"--kde" help:"to use KDE default terminal"`
+		Gnome  bool   `arg:"--gnome" help:"to use gnome-terminal to run commands"`
 	}
 
 	arg.MustParse(&args)
+
+	if args.KDE {
+		terminal = KDE
+	}
+
 	content, err := ioutil.ReadFile(args.Config)
 	if err != nil {
 		// we don't have a config file, we exit

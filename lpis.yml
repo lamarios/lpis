@@ -21,4 +21,4 @@ scripts:
   - name: Test script
     commands:
       - htop
-      - s-tui
+      - htop
